@@ -41,7 +41,10 @@ Specific instructions are not provided as I haven't tried it yet - my mate did t
 
 ## Schematic
 
-<Image Goes here>
+Until I find something that helps me show proper layouts, heres a photo:
+
+![Photo of breadboard](images/circuit-layout.jpg)
+
 
 ## Wire up the Atmega88
 
