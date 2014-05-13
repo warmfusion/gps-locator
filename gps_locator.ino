@@ -1,6 +1,18 @@
 #include <TinyGPS.h> //include TinyGPS library
+#define LOW_POWER_MODE 0
+
+#if LOW_POWER_MODE
 #include <JeeLib.h> // Low power functions library
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // Setup the watchdog
+#endif
+
+// Declare functions
+void lost();
+void notLost();
+boolean pollGPS();
+float calc_dist(float, float, float, float);
+// End of Function declaration
+
 TinyGPS gps; //initialise GPS object
 float targetLat=55.582913, targetLon=-1.835315;
 float nearDist = 50, farDist = 500;
@@ -44,7 +56,11 @@ void lost()
   lostCount++;
   if (lostCount<2)
   {
+#if LOW_POWER_MODE
     Sleepy::loseSomeTime(5000);
+#else
+    delay(5000);
+#endif
     return;
   }
   else if (lostCount<17)
@@ -52,7 +68,11 @@ void lost()
     digitalWrite(lostPin,((lostCount+1)%2));
     digitalWrite(nearPin,LOW);
     digitalWrite(farPin,LOW);
+#if LOW_POWER_MODE
     Sleepy::loseSomeTime(5000);
+#else
+    delay(5000);
+#endif
     return;
   }
   while (lostCount<23)
@@ -60,7 +80,11 @@ void lost()
     digitalWrite(lostPin,((lostCount+1)%2));
     digitalWrite(nearPin,LOW);
     digitalWrite(farPin,LOW);
+#if LOW_POWER_MODE
     Sleepy::loseSomeTime(5000);
+#else
+    delay(5000);
+#endif
     lostCount++;
   }
   lostCount=0;
@@ -93,7 +117,11 @@ void notLost()
       digitalWrite(farPin,LOW);
       digitalWrite(lostPin,HIGH);      
     }
+#if LOW_POWER_MODE
     Sleepy::loseSomeTime(10000);
+#else
+    delay(10000);
+#endif
 }
   
 
@@ -132,3 +160,4 @@ float calc_dist(float flat1, float flon1, float flat2, float flon2)
     //Serial.println(dist_calc);
     return dist_calc;
 }
+
