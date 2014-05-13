@@ -1,5 +1,6 @@
 #include <TinyGPS.h> //include TinyGPS library
-#define LOW_POWER_MODE 0
+#define LOW_POWER_MODE 0  //Low Power mode includes extra libraries making the compile a little bigger
+#define DEBUG 0           //Serial logging at the price of more memory consumption?
 
 #if LOW_POWER_MODE
 #include <JeeLib.h> // Low power functions library
@@ -7,7 +8,6 @@ ISR(WDT_vect) { Sleepy::watchdogEvent(); } // Setup the watchdog
 #endif
 
 // Declare functions
-void lost();
 void notLost();
 boolean pollGPS();
 float calc_dist(float, float, float, float);
@@ -30,64 +30,45 @@ void setup()
 void loop()
 {
   boolean newData = pollGPS();  
-  if (newData) //if we have GPS fix
+  if (newData)
+  { //if we have GPS fix
     notLost();
-  else lost();
+  }
+  else
+  {
+    //We're lost - Show this by lighting all LED's
+    digitalWrite(nearPin,HIGH);
+    digitalWrite(farPin,HIGH);
+    digitalWrite(lostPin,HIGH);
+    // Dont know where we are, wait a little longer
+    #if LOW_POWER_MODE
+      Sleepy::loseSomeTime(5000);
+    #else
+      delay(5000);
+    #endif
+  }
+
 }  
 
 boolean pollGPS() //poll for GPS data for up to one second
 {
+  #if DEBUG
+     Serial.print("Polling GPS: ");
+  #endif
   // For one second we parse GPS data and report some key values
   for (unsigned long start = millis(); millis() - start < 1000;)
   {
     while (Serial.available())
     {
       char c = Serial.read();
-      // Serial.write(c); // uncomment this line if you want to see the GPS data flowing
+      #if DEBUG
+          Serial.write(c); // uncomment this line if you want to see the GPS data flowing
+      #endif
       if (gps.encode(c)) // Did a new valid sentence come in?
         return true;
     }
   }
   return false;
-}
-
-void lost()
-{
-  lostCount++;
-  if (lostCount<2)
-  {
-#if LOW_POWER_MODE
-    Sleepy::loseSomeTime(5000);
-#else
-    delay(5000);
-#endif
-    return;
-  }
-  else if (lostCount<17)
-  {
-    digitalWrite(lostPin,((lostCount+1)%2));
-    digitalWrite(nearPin,LOW);
-    digitalWrite(farPin,LOW);
-#if LOW_POWER_MODE
-    Sleepy::loseSomeTime(5000);
-#else
-    delay(5000);
-#endif
-    return;
-  }
-  while (lostCount<23)
-  {
-    digitalWrite(lostPin,((lostCount+1)%2));
-    digitalWrite(nearPin,LOW);
-    digitalWrite(farPin,LOW);
-#if LOW_POWER_MODE
-    Sleepy::loseSomeTime(5000);
-#else
-    delay(5000);
-#endif
-    lostCount++;
-  }
-  lostCount=0;
 }
 
 void notLost()
@@ -157,7 +138,12 @@ float calc_dist(float flat1, float flon1, float flat2, float flon2)
     dist_calc=(2*atan2(sqrt(dist_calc),sqrt(1.0-dist_calc)));
     
     dist_calc*=6371000.0; //Converting to meters
-    //Serial.println(dist_calc);
+
+    #if DEBUG
+       Serial.print("Distance to target:");
+       Serial.println(dist_calc);
+    #endif
+
     return dist_calc;
 }
 
