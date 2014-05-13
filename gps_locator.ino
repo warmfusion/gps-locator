@@ -1,11 +1,10 @@
 #include <TinyGPS.h> //include TinyGPS library
 #include <JeeLib.h> // Low power functions library
-int led_pin = 13;
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // Setup the watchdog
 TinyGPS gps; //initialise GPS object
 float targetLat=55.582913, targetLon=-1.835315;
-float nearDist = 0.0002, farDist = 0.001;
-int nearPin = 5, farPin = 6, lostPin = 7, powerPin = 2;
+float nearDist = 50, farDist = 500;
+int nearPin = 5, farPin = 6, lostPin = 7;
 int lostCount=0;
 
 void setup()
@@ -14,12 +13,10 @@ void setup()
   pinMode(nearPin, OUTPUT);  //setup LED pins
   pinMode(farPin,OUTPUT);
   pinMode(lostPin,OUTPUT);
-  pinMode(powerPin, OUTPUT);  
 }
 
 void loop()
 {
-  setPower(true); //turn on power
   boolean newData = pollGPS();  
   if (newData) //if we have GPS fix
     notLost();
@@ -42,11 +39,6 @@ boolean pollGPS() //poll for GPS data for up to one second
   return false;
 }
 
-void setPower(boolean power)
-{
-  digitalWrite(powerPin, power);
-}
-
 void lost()
 {
   lostCount++;
@@ -65,7 +57,6 @@ void lost()
   }
   while (lostCount<23)
   {
-    setPower(false);
     digitalWrite(lostPin,((lostCount+1)%2));
     digitalWrite(nearPin,LOW);
     digitalWrite(farPin,LOW);
@@ -102,7 +93,6 @@ void notLost()
       digitalWrite(farPin,LOW);
       digitalWrite(lostPin,HIGH);      
     }
-    setPower(false);
     Sleepy::loseSomeTime(10000);
 }
   
