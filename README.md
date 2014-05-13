@@ -1,19 +1,26 @@
 # Summary
 
-This project is a write up of a gift from a friend for my birthday which consists of a GPS tracker
-an a traffic light of LED's that change to green the closer to my house you get.
+This project is a write up of a gift from a friend for my birthday.
+
+Using a hardcoded set of latitude and longitude coordinates, if the device is further than 500 meters away
+a red light shows, if between 500 and 50 a yellow light, and less than 50 meters a green light shows.
+
+Distance is calculated using the haversine formular to calculate a "crow-flies" distance, that takes
+into account the curvature of the earth, just in case you try and go hundreds of miles away :-)
+
+## Technology
 
 It uses an Atmega88-20pu and 16mhz crystal resulting in what I understand to be an Arduino on a breadboard
 with a few minor differences due to the difference in chip specifications.
 
 The key differences between the Atmega88 and atmega328 found on typical Arduino devices are;
 
-* Lower Flash: 8192 vs 32768
-* Less SRAM: 1024 vs 2048
-* Smaller EEPROM: 512 vs 1024
+* Lower Flash: 8192 vs 32768 bytes
+* Less SRAM: 1024 vs 2048 bytes
+* Smaller EEPROM: 512 vs 1024 bytes
 * No temp or pico power options
 
-Consult the respective datasheets for more detailed comparisons
+Consult the respective datasheets for more detailed comparisons.
 
 ## Bill of Materials
 
@@ -39,15 +46,22 @@ To push the code onto the Atmega88 its easiest to use an Arduino in ISP (In Syst
 
 Specific instructions are not provided as I haven't tried it yet - my mate did the initial programming.
 
+### Conditional Flags
+
+Due to the reduced footprint of the AtMega88 chip, the low-power and serial debugging options are enabled
+using some compile time flags, (DEBUG/LOW_POWER_MODE), to reduce consumption to < 8k - Normal arduino
+chips shouldn't require these flags to be disabled
+
+
 ## Schematic
 
-Until I find something that helps me show proper layouts, heres a photo:
+Until I find something that helps me show proper layouts, heres a photo. Ignore the brown wire at the 
+bottom left; this was left over from some experiments that didn't go anywhere.
 
 ![Photo of breadboard](images/circuit-layout.jpg)
 
 
 ## Wire up the Atmega88
-
 
 1. Place the atmega88 in the middle of your breadboard
 2. Place the 16mhz crystal across XTL1 and XTL2
