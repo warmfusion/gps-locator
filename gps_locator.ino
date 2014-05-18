@@ -1,4 +1,6 @@
 #include <SoftwareSerial.h>
+#include <bv4618_I.h>
+#include <Wire.h>
 
 #include <TinyGPS.h> //include TinyGPS library
 #define LOW_POWER_MODE 1  //Low Power mode includes extra libraries making the compile a little bigger
@@ -18,6 +20,9 @@ float calc_dist(float, float, float, float);
 TinyGPS gps; //initialise GPS object
 SoftwareSerial ss(4, 3); // Create pseudo serial on 4:rx, 3:tx so we can still debug
 
+//LCD Screen
+BV4618_I di(0x31); // 0x62 I2C address (8 bit)
+
 float targetLat=51.387425, targetLon=-2.359180;
 float nearDist = 50, farDist = 500;
 int nearPin = 5, farPin = 6, lostPin = 7;
@@ -30,6 +35,7 @@ void setup()
   pinMode(nearPin, OUTPUT);  //setup LED pins
   pinMode(farPin,OUTPUT);
   pinMode(lostPin,OUTPUT);
+  di.setdisplay(4,20);
 }
 
 void loop()
@@ -94,14 +100,34 @@ void notLost()
 {
     lostCount=0;
     float flat,flon,dist;
+    char buf[20]; // Buffer for sprintf
     unsigned long age;
     gps.f_get_position(&flat, &flon, &age);    
 
+    di.cls();
+    // Display Lattitude
+    di.rowcol(1,1);  
+    // sprintf float functions don't get auto linked, so work around that fact to create equivalent of 0.6f...
+    int flat1 = (flat - (int)flat) * 100000;
+    sprintf(buf,"Lat: %0d.%d", (int)flat, abs(flat1)); 
+    di.puts(buf);
+    // Display Longitude 
+    di.rowcol(2,1);
+    // sprintf float functions don't get auto linked, so work around that fact to create equivalent of 0.6f...
+    int flon1 = (flon - (int)flon) * 100000;
+    sprintf(buf,"Lat: %0d.%d", (int)flon, abs(flon1)); 
+    di.puts(buf);
+    
     dist = calc_dist( flat, flon, targetLat, targetLon);
     
+    // Display Distance to target
+    di.rowcol(4,1);
+    sprintf(buf, "Dist: %d m", int(dist) );
+    di.puts(buf);
+
     #if DEBUG
        Serial.print("Distance to target (m) : "); Serial.print(dist);
-    #endif
+    #endif    
 
     if (dist < nearDist)
     {
