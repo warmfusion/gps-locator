@@ -1,6 +1,8 @@
+#include <SoftwareSerial.h>
+
 #include <TinyGPS.h> //include TinyGPS library
-#define LOW_POWER_MODE 0  //Low Power mode includes extra libraries making the compile a little bigger
-#define DEBUG 0           //Serial logging at the price of more memory consumption?
+#define LOW_POWER_MODE 1  //Low Power mode includes extra libraries making the compile a little bigger
+#define DEBUG 1           //Serial logging at the price of more memory consumption?
 
 #if LOW_POWER_MODE
 #include <JeeLib.h> // Low power functions library
@@ -14,7 +16,9 @@ float calc_dist(float, float, float, float);
 // End of Function declaration
 
 TinyGPS gps; //initialise GPS object
-float targetLat=55.582913, targetLon=-1.835315;
+SoftwareSerial ss(4, 3); // Create pseudo serial on 4:rx, 3:tx so we can still debug
+
+float targetLat=51.387425, targetLon=-2.359180;
 float nearDist = 50, farDist = 500;
 int nearPin = 5, farPin = 6, lostPin = 7;
 int lostCount=0;
@@ -22,6 +26,7 @@ int lostCount=0;
 void setup()
 {
   Serial.begin(9600);      //initialise serial port
+  ss.begin(9600); // GPS module transmits at 9600 baud
   pinMode(nearPin, OUTPUT);  //setup LED pins
   pinMode(farPin,OUTPUT);
   pinMode(lostPin,OUTPUT);
@@ -52,23 +57,37 @@ void loop()
 
 boolean pollGPS() //poll for GPS data for up to one second
 {
-  #if DEBUG
-     Serial.print("Polling GPS: ");
-  #endif
   // For one second we parse GPS data and report some key values
   for (unsigned long start = millis(); millis() - start < 1000;)
   {
-    while (Serial.available())
+    while (ss.available())
     {
-      char c = Serial.read();
+      char c = ss.read();
       #if DEBUG
-          Serial.write(c); // uncomment this line if you want to see the GPS data flowing
+//          Serial.write(c); // uncomment this line if you want to see the GPS data flowing
       #endif
-      if (gps.encode(c)) // Did a new valid sentence come in?
+      if (gps.encode(c)){ // Did a new valid sentence come in?
+        #if DEBUG
+          float flat, flon;
+          unsigned long age;
+          gps.f_get_position(&flat, &flon, &age);
+          Serial.println();
+          Serial.println("Location found...");
+          Serial.print("LAT=");
+          Serial.print(flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flat, 6);
+          Serial.print(" LON=");
+          Serial.print(flon == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flon, 6);
+          Serial.print(" SAT=");
+          Serial.print(gps.satellites() == TinyGPS::GPS_INVALID_SATELLITES ? 0 : gps.satellites());
+          Serial.print(" PREC=");
+          Serial.print(gps.hdop() == TinyGPS::GPS_INVALID_HDOP ? 0 : gps.hdop());
+          Serial.println();
+        #endif
         return true;
+      }
     }
   }
-  return false;
+  return false;  
 }
 
 void notLost()
@@ -79,6 +98,10 @@ void notLost()
     gps.f_get_position(&flat, &flon, &age);    
 
     dist = calc_dist( flat, flon, targetLat, targetLon);
+    
+    #if DEBUG
+       Serial.print("Distance to target (m) : "); Serial.print(dist);
+    #endif
 
     if (dist < nearDist)
     {
@@ -138,11 +161,6 @@ float calc_dist(float flat1, float flon1, float flat2, float flon2)
     dist_calc=(2*atan2(sqrt(dist_calc),sqrt(1.0-dist_calc)));
     
     dist_calc*=6371000.0; //Converting to meters
-
-    #if DEBUG
-       Serial.print("Distance to target:");
-       Serial.println(dist_calc);
-    #endif
 
     return dist_calc;
 }
