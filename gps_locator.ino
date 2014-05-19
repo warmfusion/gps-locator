@@ -3,13 +3,12 @@
 #include <Wire.h>
 
 #include <TinyGPS.h> //include TinyGPS library
-#define LOW_POWER_MODE 1  //Low Power mode includes extra libraries making the compile a little bigger
 #define DEBUG 1           //Serial logging at the price of more memory consumption?
 
-#if LOW_POWER_MODE
+
 #include <JeeLib.h> // Low power functions library
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // Setup the watchdog
-#endif
+
 
 // Declare functions
 void notLost();
@@ -19,23 +18,26 @@ float calc_dist(float, float, float, float);
 
 TinyGPS gps; //initialise GPS object
 SoftwareSerial ss(4, 3); // Create pseudo serial on 4:rx, 3:tx so we can still debug
-
 //LCD Screen
 BV4618_I di(0x31); // 0x62 I2C address (8 bit)
 
-float targetLat=51.387425, targetLon=-2.359180;
-float nearDist = 50, farDist = 500;
-int nearPin = 5, farPin = 6, lostPin = 7;
-int lostCount=0;
+float dist = 5000;
+float targetLat=51.370578, targetLon=-2.384146;
+float nearDist = 25, farDist = 100;
 
 void setup()
 {
-  Serial.begin(9600);      //initialise serial port
+  #if DEBUG
+    Serial.begin(9600);      //initialise serial port
+  #endif
+
+  //Prepare the software serial for the GPS
   ss.begin(9600); // GPS module transmits at 9600 baud
-  pinMode(nearPin, OUTPUT);  //setup LED pins
-  pinMode(farPin,OUTPUT);
-  pinMode(lostPin,OUTPUT);
+  // Setup LCD Display
   di.setdisplay(4,20);
+  di.backlight(1);
+  di.cls();
+
 }
 
 void loop()
@@ -47,18 +49,16 @@ void loop()
   }
   else
   {
-    //We're lost - Show this by lighting all LED's
-    digitalWrite(nearPin,HIGH);
-    digitalWrite(farPin,HIGH);
-    digitalWrite(lostPin,HIGH);
+    //Oh no! We're lost :-(
+    di.cls();
+    di.rowcol(1,1);  
+    di.puts("Finding Location...");
+    
     // Dont know where we are, wait a little longer
-    #if LOW_POWER_MODE
-      Sleepy::loseSomeTime(5000);
-    #else
-      delay(5000);
-    #endif
+    Sleepy::loseSomeTime(5000);
   }
-
+    
+  Sleepy::loseSomeTime(1000);
 }  
 
 boolean pollGPS() //poll for GPS data for up to one second
@@ -98,32 +98,46 @@ boolean pollGPS() //poll for GPS data for up to one second
 
 void notLost()
 {
-    lostCount=0;
-    float flat,flon,dist;
-    char buf[20]; // Buffer for sprintf
+    float flat,flon,newDist;
+    char buf[20];
     unsigned long age;
     gps.f_get_position(&flat, &flon, &age);    
 
-    di.cls();
     // Display Lattitude
     di.rowcol(1,1);  
     // sprintf float functions don't get auto linked, so work around that fact to create equivalent of 0.6f...
-    int flat1 = (flat - (int)flat) * 100000;
+    
+// The following bit of code tries to use dtostrf to make the floating point to string conversion,
+// but it adds 2k to the compile size which is frankly ridiculous for a bit of display
+//   char lcdLine[21] = "Lat :"; //array for LCDLine
+//    dtostrf(flat, 10, 6, &lcdLine[6]);
+//    di.puts(lcdLine);
+
+
+    // Display Latitude
+    di.rowcol(1,1);
+    // sprintf float functions don't get auto linked, so work around that fact to create equivalent of 0.5f...
+    // WARNING: anything larger than 10000 seems to create floating point errors :-(
+    int flat1 = (flat - (int)flat) * 10000;
     sprintf(buf,"Lat: %0d.%d", (int)flat, abs(flat1)); 
     di.puts(buf);
+    di.clright();
+    
     // Display Longitude 
     di.rowcol(2,1);
     // sprintf float functions don't get auto linked, so work around that fact to create equivalent of 0.6f...
-    int flon1 = (flon - (int)flon) * 100000;
-    sprintf(buf,"Lat: %0d.%d", (int)flon, abs(flon1)); 
+    int flon1 = (flon - (int)flon) * 10000;
+    sprintf(buf,"Lon: %0d.%d", (int)flon, abs(flon1)); 
     di.puts(buf);
+    di.clright();
     
-    dist = calc_dist( flat, flon, targetLat, targetLon);
+    dist = TinyGPS::distance_between( flat, flon, targetLat, targetLon);
     
     // Display Distance to target
     di.rowcol(4,1);
-    sprintf(buf, "Dist: %d m", int(dist) );
+    sprintf(buf, "Head %dm, %s       ", int(dist), TinyGPS::cardinal(TinyGPS::course_to(flat, flon, targetLat, targetLon)) );
     di.puts(buf);
+    di.clright();
 
     #if DEBUG
        Serial.print("Distance to target (m) : "); Serial.print(dist);
@@ -131,63 +145,25 @@ void notLost()
 
     if (dist < nearDist)
     {
-      digitalWrite(nearPin,HIGH);
-      digitalWrite(farPin,LOW);
-      digitalWrite(lostPin,LOW);      
+      di.rowcol(3,1);
+      di.puts("Hot hot hot!");      
+      di.clright();
     }
     else if (dist < farDist)
     {
-      digitalWrite(nearPin,LOW);
-      digitalWrite(farPin,HIGH);
-      digitalWrite(lostPin,LOW);     
+      di.rowcol(3,1);
+      di.puts("Getting Warmer");
+      di.clright();
     }
     else
     {
-      digitalWrite(nearPin,LOW);
-      digitalWrite(farPin,LOW);
-      digitalWrite(lostPin,HIGH);      
+      di.rowcol(3,1);
+      di.puts("Cold....");
+      di.clright();
     }
-#if LOW_POWER_MODE
-    Sleepy::loseSomeTime(10000);
-#else
-    delay(10000);
-#endif
-}
-  
+    
+    // Return to home
+    di.crhome();
 
-
-/*************************************************************************
- * //Function to calculate the distance between two waypoints
- * //From: http://forum.arduino.cc/index.php/topic,27541.0.html
- *
- * // Appears to be based on the haversine formular
- *      - http://blog.avangardo.com/2013/02/distance-between-two-points-on-the-earth/
- *************************************************************************/
-float calc_dist(float flat1, float flon1, float flat2, float flon2)
-{
-    float dist_calc=0;
-    float dist_calc2=0;
-    float diflat=0;
-    float diflon=0;
-    
-    //I've to spplit all the calculation in several steps. If i try to do it in a single line the arduino will explode.
-    diflat=radians(flat2-flat1);
-    flat1=radians(flat1);
-    flat2=radians(flat2);
-    diflon=radians((flon2)-(flon1));
-    
-    dist_calc = (sin(diflat/2.0)*sin(diflat/2.0));
-    dist_calc2= cos(flat1);
-    dist_calc2*=cos(flat2);
-    dist_calc2*=sin(diflon/2.0);
-    dist_calc2*=sin(diflon/2.0);
-    dist_calc +=dist_calc2;
-    
-    // This represents the 
-    dist_calc=(2*atan2(sqrt(dist_calc),sqrt(1.0-dist_calc)));
-    
-    dist_calc*=6371000.0; //Converting to meters
-
-    return dist_calc;
 }
 
